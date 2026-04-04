@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 ntex = { version = "2", features = ["tokio"] }
 serde = { version = "1", features = ["derive"] }
+graphql-composition = "0.12"

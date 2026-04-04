@@ -1,3 +1,6 @@
+use graphql_composition::{
+    Subgraphs, compose as gql_compose, render_api_sdl, render_federated_sdl,
+};
 use ntex::web;
 use serde::{Deserialize, Serialize};
 
@@ -43,20 +46,59 @@ async fn hello() -> &'static str {
     "hello-world"
 }
 
-async fn compose(
-    body: web::types::Json<Vec<SchemaService>>,
-) -> web::HttpResponse {
+async fn compose(body: web::types::Json<Vec<SchemaService>>) -> web::HttpResponse {
     let services = body.into_inner();
-    let combined_sdl = services.iter().map(|s| s.sdl.as_str()).collect::<Vec<_>>().join("\n");
+    let mut subgraphs = Subgraphs::default();
 
-    let result = CompositionResult::Success {
-        result: CompositionSuccessResult {
-            supergraph: combined_sdl.clone(),
-            sdl: combined_sdl,
+    for service in &services {
+        if let Err(e) = subgraphs.ingest_str(&service.sdl, &service.name, service.url.as_deref()) {
+            let result = CompositionResult::Failure {
+                result: CompositionFailureResult {
+                    errors: vec![CompositionError {
+                        message: e.to_string(),
+                        source: ErrorSource::GraphQL,
+                    }],
+                },
+            };
+            return web::HttpResponse::Ok().json(&result);
+        }
+    }
+
+    match gql_compose(&mut subgraphs).into_result() {
+        Ok(graph) => match render_federated_sdl(&graph) {
+            Ok(supergraph) => {
+                let sdl = render_api_sdl(&graph);
+                let result = CompositionResult::Success {
+                    result: CompositionSuccessResult { supergraph, sdl },
+                };
+                web::HttpResponse::Ok().json(&result)
+            }
+            Err(e) => {
+                let result = CompositionResult::Failure {
+                    result: CompositionFailureResult {
+                        errors: vec![CompositionError {
+                            message: e.to_string(),
+                            source: ErrorSource::GraphQL,
+                        }],
+                    },
+                };
+                web::HttpResponse::Ok().json(&result)
+            }
         },
-    };
-
-    web::HttpResponse::Ok().json(&result)
+        Err(diagnostics) => {
+            let errors = diagnostics
+                .iter_errors()
+                .map(|msg| CompositionError {
+                    message: msg.to_string(),
+                    source: ErrorSource::Composition,
+                })
+                .collect();
+            let result = CompositionResult::Failure {
+                result: CompositionFailureResult { errors },
+            };
+            web::HttpResponse::Ok().json(&result)
+        }
+    }
 }
 
 #[ntex::main]
@@ -66,7 +108,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(hello))
             .route("/compose", web::post().to(compose))
     })
-        .bind("0.0.0.0:4000")?
-        .run()
-        .await
+    .bind("0.0.0.0:4000")?
+    .run()
+    .await
 }
