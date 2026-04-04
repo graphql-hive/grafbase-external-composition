@@ -43,9 +43,29 @@ async fn hello() -> &'static str {
     "hello-world"
 }
 
+async fn compose(
+    body: web::types::Json<Vec<SchemaService>>,
+) -> web::HttpResponse {
+    let services = body.into_inner();
+    let combined_sdl = services.iter().map(|s| s.sdl.as_str()).collect::<Vec<_>>().join("\n");
+
+    let result = CompositionResult::Success {
+        result: CompositionSuccessResult {
+            supergraph: combined_sdl.clone(),
+            sdl: combined_sdl,
+        },
+    };
+
+    web::HttpResponse::Ok().json(&result)
+}
+
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
-    web::HttpServer::new(|| web::App::new().route("/", web::get().to(hello)))
+    web::HttpServer::new(|| {
+        web::App::new()
+            .route("/", web::get().to(hello))
+            .route("/compose", web::post().to(compose))
+    })
         .bind("0.0.0.0:4000")?
         .run()
         .await
