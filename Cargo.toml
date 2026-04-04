@@ -1,0 +1,7 @@
+[package]
+name = "grafbase-external-composition"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ntex = { version = "2", features = ["tokio"] }
