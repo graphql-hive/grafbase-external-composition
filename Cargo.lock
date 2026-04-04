@@ -281,6 +281,7 @@ name = "grafbase-external-composition"
 version = "0.1.0"
 dependencies = [
  "ntex",
+ "serde",
 ]
 
 [[package]]
