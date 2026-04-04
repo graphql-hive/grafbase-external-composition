@@ -42,8 +42,8 @@ pub enum ErrorSource {
     Composition,
 }
 
-async fn hello() -> &'static str {
-    "hello-world"
+async fn health() -> web::HttpResponse {
+    web::HttpResponse::Ok().into()
 }
 
 async fn compose(body: web::types::Json<Vec<SchemaService>>) -> web::HttpResponse {
@@ -105,7 +105,7 @@ async fn compose(body: web::types::Json<Vec<SchemaService>>) -> web::HttpRespons
 async fn main() -> std::io::Result<()> {
     web::HttpServer::new(|| {
         web::App::new()
-            .route("/", web::get().to(hello))
+            .route("/health", web::get().to(health))
             .route("/compose", web::post().to(compose))
     })
     .bind("0.0.0.0:4000")?
