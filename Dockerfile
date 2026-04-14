@@ -1,12 +1,9 @@
 FROM rust:1.94 AS builder
 
 WORKDIR /app
-COPY Cargo.toml Cargo.lock build.rs ./
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
-COPY patches ./patches
 
-RUN cargo install patch-crate
-RUN cargo patch-crate
 RUN cargo build --release
 
 FROM debian:bookworm-slim
