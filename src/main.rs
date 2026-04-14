@@ -46,6 +46,41 @@ async fn health() -> web::HttpResponse {
     web::HttpResponse::Ok().into()
 }
 
+// Constant that holds missing directive definitions.
+const EXTENSION_DIRECTIVE_DEFINITIONS: &str = r#"
+"""
+Directive Arguments is a scalar that represents the args passed to the @extension__directive and @extension__link directives.
+It is a JSON object that can contain any key-value pairs.
+"""
+scalar DirectiveArguments
+
+"""
+The directive that associates values of the `extension__Link` enum to the extension's url.
+"""
+directive @extension__link(
+  """ The `@link()`ed extension's url, including name and version. """
+  url: String!
+  """ The directives on schema definitions and extensions that are associated with the extension. """
+  schemaDirectives: DirectiveArguments
+) on ENUM_VALUE
+
+"""
+An instance of a directive imported from an extension. The `name` and `arguments` arguments
+are a hoisted version of the original directive. We do this so we can add the `graph` and
+`extension` arguments.
+"""
+directive @extension__directive(
+  """ Which subgraph the directive comes from. """
+  graph: DirectiveArguments!
+  """ The extension argument is a JSON object that represents the directives to apply to the schema element in the context of the external schema. """
+  extension: extension__Link!
+  """ The name argument is the name of the directive to apply. """
+  name: String!
+  """ The arguments argument is a JSON object that represents the arguments to pass to the directive. """
+  arguments: DirectiveArguments
+) repeatable on SCHEMA | SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+"#;
+
 async fn compose(body: web::types::Json<Vec<SchemaService>>) -> web::HttpResponse {
     let services = body.into_inner();
     let mut subgraphs = Subgraphs::default();
@@ -68,12 +103,14 @@ async fn compose(body: web::types::Json<Vec<SchemaService>>) -> web::HttpRespons
 
     match gql_compose(&mut subgraphs).into_result() {
         Ok(graph) => match render_federated_sdl(&graph) {
-            Ok(/*mut */ supergraph) => {
-                // if supergraph.contains("@extension__directive")
-                //     && !supergraph.contains("directive @extension__directive")
-                // {
-                //     supergraph.push_str("\ndirective @extension__directive(graph: join__Graph!, extension: grafbase__Extension!, name: String!, arguments: DirectiveArguments) repeatable ON FIELD | SCHEMA | SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION");
-                // }
+            Ok(mut supergraph) => {
+                // If directive is in use, but not defined
+                // add the definition to the supergraph SDL.
+                if supergraph.contains("@extension__directive")
+                && !supergraph.contains("directive @extension__directive")
+                {
+                    supergraph.push_str(EXTENSION_DIRECTIVE_DEFINITIONS);
+                }
 
                 let sdl = render_api_sdl(&graph);
                 let result = CompositionResult::Success {
