@@ -6,13 +6,4 @@ edition = "2024"
 [dependencies]
 ntex = { version = "2", features = ["tokio"] }
 serde = { version = "1", features = ["derive"] }
-graphql-composition = "0.12.1"
-
-[build-dependencies]
-patch-crate = "0.1"
-
-[package.metadata.patch]
-crates = ["graphql-composition"]
-
-[patch.crates-io]
-graphql-composition = { path="./target/patch/graphql-composition-0.12.1" }
+graphql-composition = "0.12.2"
